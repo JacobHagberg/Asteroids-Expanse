@@ -1,0 +1,557 @@
+import pygame
+import random
+import math
+import time
+import os
+
+fps = 60
+
+SpeedMultplyer = 60/fps #SpeedMultplyer is the constant that makes shure the game runs at the same speed for difrent fps
+
+MaxShipAccel = 0.070
+MaxShipVel = 4
+
+MaxAsteroidVel = 2
+MaxBulletVel = 10
+
+MaxAsteroidNumber = 30
+
+width, height = 1200, 700 #screen width and height
+
+ArenaWidth, ArenaHeight = 3000, 3000 #Game width and height
+
+starNumber = 1200
+
+stars = []
+
+Window = pygame.display.set_mode((width, height), pygame.RESIZABLE)
+pygame.display.set_caption('Asteroids')
+
+pygame.font.init()
+
+AstertodNumberFont = pygame.font.SysFont('comicsans', 25)
+
+BigFont = pygame.font.SysFont('comicsans', 100)
+SmallFont = pygame.font.SysFont('comicsans', 30)
+
+AsteroidImage1 = pygame.image.load(os.path.join('Asteroid1.jpg')) #asteroid models
+AsteroidImage1 = pygame.transform.scale(AsteroidImage1, (80, 80))
+AsteroidImage2 = pygame.image.load(os.path.join('Asteroid2.jpg'))
+AsteroidImage2 = pygame.transform.scale(AsteroidImage2, (80, 80))
+AsteroidImage3 = pygame.image.load(os.path.join('Asteroid3.jpg'))
+AsteroidImage3 = pygame.transform.scale(AsteroidImage3, (80, 80))
+
+AsteroidKillnumber = 0
+
+class Asteroid:
+    XPos = 0
+    YPos = 0
+
+    YVal = 0
+    XVal = 0
+
+    width = 80
+    height = 80
+
+    ImageNumber = 0 #1-3
+    ImageRotation = 0 #1-4
+
+class Bullet:
+    XPos = 0
+    YPos = 0
+
+    YVal = 0
+    XVal = 0
+
+    width = 2
+    height = 2
+
+class SpaceShip:
+    XPos = 0
+    YPos = 0
+
+    YVal = 0
+    XVal = 0
+
+    YAccel = 0
+    XAccel = 0
+
+    Rotation = 0
+
+    width = 40
+    height = 40
+
+    bulletCoolDown = 50
+
+
+def GameSetup():
+    global MaxShipAccel, MaxShipVel, MaxAsteroidVel, MaxBulletVel, ArenaWidth, ArenaHeight, MaxAsteroidNumber, stars, AsteroidKillnumber
+    AsteroidKillnumber = 0
+    Asteroids = []
+    for i in range(MaxAsteroidNumber):#Create asteroids
+        temp = Asteroid()
+        Asteroids.append(temp)
+    TheSpaceShip = SpaceShip()
+    for i in range(len(Asteroids)): #Place asteroids and give then a model and model rotation
+        Asteroids[i].XPos = random.randrange(5, ArenaWidth - 150, 1)
+        Asteroids[i].ImageNumber = random.randint(1,3)
+        Asteroids[i].ImageRotation = random.randint(1,4)
+        doLoop = True
+        loopCount = 0
+        while doLoop and loopCount < 8:
+            loopCount += 1
+            randY = random.randrange(5, ArenaHeight - 150, 1)
+            if (not randY > (ArenaHeight/2) - 140 or not randY < (ArenaHeight/2) + 140) and (Asteroids[i].XPos < (ArenaHeight/2) + 140 or Asteroids[i].XPos > (ArenaHeight/2) - 140):
+                doLoop = False
+            for z in range(0,i):
+                if abs(Asteroids[z].XPos - Asteroids[i].XPos) < 80 and abs(Asteroids[z].YPos - Asteroids[i].YPos) < 80 and i != z:
+                    doLoop = True
+                    randY = -100
+        
+        Asteroids[i].YPos = randY
+
+        Asteroids[i].XVal = (random.randrange(-8, 8, 1)/8) #Give asteroids velocity
+        Asteroids[i].YVal = (random.randrange(-8, 8, 1)/8)
+
+    whileCounter = 0
+    while len(Asteroids) > whileCounter: #remove asteroids that were not placed
+        if Asteroids[whileCounter].YPos < 0:
+            del Asteroids[whileCounter]
+        else:
+            whileCounter += 1
+            
+    TheSpaceShip.YPos = int(ArenaHeight/2) #place ship at center
+    TheSpaceShip.XPos = int(ArenaWidth/2)
+
+    for i in range(starNumber): #get list of stars randomly placed
+        temp = []
+        temp.append(random.randint(1,ArenaWidth))
+        temp.append(random.randint(1,ArenaHeight))
+        stars.append(temp)
+
+    return Asteroids, TheSpaceShip, []
+
+
+
+
+def Tick(Asteroids, Bullets, SpaceShip): #process all the movement and collisions of objects
+    global MaxShipAccel, MaxShipVel, MaxAsteroidVel, MaxBulletVel, ArenaWidth, ArenaHeight, AsteroidKillnumber, SpeedMultplyer
+    """
+    MaxShipAccel = 0.070 * SpeedMultplyer
+    MaxShipVel = 4 * SpeedMultplyer
+
+    MaxAsteroidVel = 2 * SpeedMultplyer
+    MaxBulletVel = 10 * SpeedMultplyer
+    """
+    SpaceShip.bulletCoolDown -= 1 * SpeedMultplyer #Makes delay between bullet firing
+
+    if len(Asteroids) - 1 <= MaxAsteroidNumber: #check if we need a new asteroid
+        newAsteroid = Asteroid()
+        newAsteroid.XVal = (random.randrange(-8, 8, 1)/8)
+        newAsteroid.YVal = (random.randrange(-8, 8, 1)/8)
+        newAsteroid.ImageNumber = random.randint(1,3)
+        newAsteroid.ImageRotation = random.randint(1,4)
+
+        for i in range(15):
+            randY = random.randint(5, ArenaHeight - 150)
+            randX = random.randint(5, ArenaWidth - 150)
+            if not abs(randY - SpaceShip.YPos) < 400 or not abs(randX - SpaceShip.XPos) < 400:
+                newAsteroid.XPos = randX
+                newAsteroid.YPos = randY
+                break
+        Asteroids.append(newAsteroid)
+
+    for i in range(len(Asteroids)): #Asteroid velocity checks and update position
+        if Asteroids[i].XVal > MaxAsteroidVel:
+            Asteroids[i].XVal = MaxAsteroidVel
+        if Asteroids[i].XVal < -MaxAsteroidVel:
+            Asteroids[i].XVal = -MaxAsteroidVel
+        if Asteroids[i].YVal > MaxAsteroidVel:
+            Asteroids[i].YVal = MaxAsteroidVel
+        if Asteroids[i].YVal < -MaxAsteroidVel:
+            Asteroids[i].YVal = -MaxAsteroidVel
+        Asteroids[i].XPos = (Asteroids[i].XVal * SpeedMultplyer) + Asteroids[i].XPos
+        Asteroids[i].YPos = (Asteroids[i].YVal * SpeedMultplyer) + Asteroids[i].YPos
+
+    for i in range(len(Bullets)): #Bullet velocity checks and update position
+        if Bullets[i].XVal > MaxBulletVel:
+            Bullets[i].XVal = MaxBulletVel
+        if Bullets[i].XVal < -MaxBulletVel:
+            Bullets[i].XVal = -MaxBulletVel
+        if Bullets[i].YVal > MaxBulletVel:
+            Bullets[i].YVal = MaxBulletVel
+        if Bullets[i].YVal < -MaxBulletVel:
+            Bullets[i].YVal = -MaxBulletVel
+
+        Bullets[i].XPos = (Bullets[i].XVal * SpeedMultplyer) + Bullets[i].XPos
+        Bullets[i].YPos = (Bullets[i].YVal * SpeedMultplyer) + Bullets[i].YPos
+    
+    #Ship velocity checks and update position
+    if SpaceShip.XAccel > MaxShipAccel:
+        SpaceShip.XAccel = MaxShipAccel
+    if SpaceShip.XAccel < -MaxShipAccel:
+        SpaceShip.XAccel = -MaxShipAccel
+    if SpaceShip.YAccel > MaxShipAccel:
+        SpaceShip.YAccel = MaxShipAccel
+    if SpaceShip.YAccel < -MaxShipAccel:
+        SpaceShip.YAccel = -MaxShipAccel
+
+    SpaceShip.XVal = SpaceShip.XAccel * SpeedMultplyer + SpaceShip.XVal
+    SpaceShip.YVal = SpaceShip.YAccel * SpeedMultplyer + SpaceShip.YVal
+
+    if SpaceShip.XVal > MaxShipVel:
+        SpaceShip.XVal = MaxShipVel
+    if SpaceShip.XVal < -MaxShipVel:
+        SpaceShip.XVal = -MaxShipVel
+    if SpaceShip.YVal > MaxShipVel:
+        SpaceShip.YVal = MaxShipVel
+    if SpaceShip.YVal < -MaxShipVel:
+        SpaceShip.YVal = -MaxShipVel
+
+    SpaceShip.XPos = SpaceShip.XVal * SpeedMultplyer + SpaceShip.XPos
+    SpaceShip.YPos = SpaceShip.YVal * SpeedMultplyer + SpaceShip.YPos
+
+    for i in range(len(Bullets)): #Bullet on wall colision
+        if Bullets[i].XPos + Bullets[i].width - 1 > ArenaWidth or Bullets[i].YPos + Bullets[i].height - 1 > ArenaHeight or Bullets[i].XPos < 0 or Bullets[i].YPos < 0:
+            Bullets[i] = 0
+    
+    for i in range(len(Bullets)):
+        try:
+            Bullets.remove(0)
+        except:
+            break
+
+    for i in range(len(Asteroids)): #Asteroid on wall collisions
+        if Asteroids[i].XPos + Asteroids[i].width > ArenaWidth or Asteroids[i].XPos < 0:
+            Asteroids[i].XVal = Asteroids[i].XVal * -1
+            if Asteroids[i].XPos > 0:
+                Asteroids[i].XPos = Asteroids[i].XPos - (Asteroids[i].XPos + Asteroids[i].width - ArenaWidth)
+            else:
+                Asteroids[i].XPos = 0 + (0 - Asteroids[i].XPos)
+                
+        if Asteroids[i].YPos + Asteroids[i].height > ArenaHeight or Asteroids[i].YPos < 0:
+            Asteroids[i].YVal = Asteroids[i].YVal * -1
+            if Asteroids[i].YPos > 0:
+                Asteroids[i].YPos = Asteroids[i].YPos - (Asteroids[i].YPos + Asteroids[i].height - ArenaHeight)
+            else:
+                Asteroids[i].YPos = 0 + (0 - Asteroids[i].YPos)
+    #Spaceship on wall collision
+    if SpaceShip.XPos + SpaceShip.width - 1 > ArenaWidth or SpaceShip.XPos < 0:
+        SpaceShip.XVal = SpaceShip.XVal * -1
+        if SpaceShip.XPos > 0:
+            SpaceShip.XPos = SpaceShip.XPos - (SpaceShip.XPos + SpaceShip.width - 1 - ArenaWidth)
+        else:
+            SpaceShip.XPos = 0 + (0 - SpaceShip.XPos)
+                
+    if SpaceShip.YPos + SpaceShip.height - 1 > ArenaHeight or SpaceShip.YPos < 0:
+        SpaceShip.YVal = SpaceShip.YVal * -1
+        if SpaceShip.YPos > 0:
+            SpaceShip.YPos = SpaceShip.YPos - (SpaceShip.YPos + SpaceShip.height - 1 - ArenaHeight)
+        else:
+            SpaceShip.YPos = 0 + (0 - SpaceShip.YPos)
+
+    for i in range(len(Bullets)): #asteroid on bullet collision
+        for o in range(len(Asteroids)):
+            try:
+                if -1 * Bullets[i].width < Bullets[i].XPos - Asteroids[o].XPos < Asteroids[o].width and -1 * Bullets[i].height < Bullets[i].YPos - Asteroids[o].YPos < Asteroids[o].height:
+                    Bullets[i] = 0
+                    Asteroids[o] = 0
+                    print(len(Asteroids))
+                    AsteroidKillnumber += 1
+            except:
+                pass
+    
+    for i in range(len(Bullets)):#Remove bullet and asteroid from list
+        try:
+            Bullets.remove(0)
+        except:
+            break
+    for i in range(len(Asteroids)):
+        try:
+            Asteroids.remove(0)
+        except:
+            break
+
+    for i in range(len(Asteroids)): #Asteroid on asteroid collision
+        for o in range(i, len(Asteroids)):
+            if i != o:
+                if -1 * Asteroids[i].width < Asteroids[i].XPos - Asteroids[o].XPos < Asteroids[o].width and -1 * Asteroids[i].height < Asteroids[i].YPos - Asteroids[o].YPos < Asteroids[o].height:
+                    #print('Touching')
+                    if Asteroids[i].XPos > Asteroids[o].XPos:
+                        BiggestX = Asteroids[i].XPos
+                    else:
+                        BiggestX = Asteroids[o].XPos
+
+                    if Asteroids[i].XPos + Asteroids[i].width - 1 < Asteroids[o].XPos + Asteroids[o].width - 1:
+                        SmallestX = Asteroids[i].XPos + Asteroids[i].width - 1
+                    else:
+                        SmallestX = Asteroids[o].XPos + Asteroids[o].width - 1
+                    XTouchingNumber = SmallestX - BiggestX
+
+                    if Asteroids[i].YPos > Asteroids[o].YPos:
+                        BiggestY = Asteroids[i].YPos
+                    else:
+                        BiggestY = Asteroids[o].YPos
+
+                    if Asteroids[i].YPos + Asteroids[i].height - 1 < Asteroids[o].YPos + Asteroids[o].height - 1:
+                        SmallestY = Asteroids[i].YPos + Asteroids[i].height - 1
+                    else:
+                        SmallestY = Asteroids[o].YPos + Asteroids[o].height - 1
+                    YTouchingNumber = SmallestY - BiggestY
+                    if XTouchingNumber > YTouchingNumber:
+
+                        if Asteroids[i].YPos > Asteroids[o].YPos:
+                            largestPos = i
+                            smallestPos = o
+                        else:
+                            largestPos = o
+                            smallestPos = i
+
+                        if Asteroids[i].YVal > Asteroids[o].YVal:
+                            largestYVal = i
+                            smallestYVal = o
+                        else:
+                            largestYVal = o
+                            smallestYVal = i
+
+                        temp = Asteroids[largestYVal].YVal
+                        temp2 = Asteroids[smallestYVal].YVal
+                        
+                        Asteroids[largestPos].YVal = temp
+                        Asteroids[smallestPos].YVal = temp2
+
+                    else:
+                        if Asteroids[i].XPos > Asteroids[o].XPos:
+                            largestPos = i
+                            smallestPos = o
+                        else:
+                            largestPos = o
+                            smallestPos = i
+
+                        if Asteroids[i].XVal > Asteroids[o].XVal:
+                            largestVal = i
+                            smallestVal = o
+                        else:
+                            largestVal = o
+                            smallestVal = i
+
+                        temp = Asteroids[largestVal].XVal
+                        temp2 = Asteroids[smallestVal].XVal
+                        
+                        Asteroids[largestPos].XVal = temp
+                        Asteroids[smallestPos].XVal = temp2
+
+    for i in range(len(Asteroids)): # Asteroid on ship collision
+        if -1 * Asteroids[i].width < Asteroids[i].XPos - SpaceShip.XPos < SpaceShip.width and -1 * Asteroids[i].height < Asteroids[i].YPos - SpaceShip.YPos < SpaceShip.height:
+            SpaceShip = 0
+            Asteroids[i] = 0
+            break
+    try:
+        Bullets.remove(0)
+    except:
+        pass
+    for i in range(len(Asteroids)):
+        try:
+            Asteroids.remove(0)
+        except:
+            break
+    return Asteroids, Bullets, SpaceShip
+
+def DrawAsteroid(Asteroid, XScreenOffset, YScreenOffset): #XScreenOffset and YScreenOffset are where the screen is in relation to the map
+    if Asteroid.ImageNumber == 1: #get proper image for asteroid
+        ImageUsed = AsteroidImage1
+    if Asteroid.ImageNumber == 2:
+        ImageUsed = AsteroidImage2
+    if Asteroid.ImageNumber == 3:
+        ImageUsed = AsteroidImage3
+
+    rotation = Asteroid.ImageRotation * 90
+
+    FinalImage = pygame.transform.rotate(ImageUsed, rotation) #Rotate asteroid
+
+    Window.blit(FinalImage, (Asteroid.XPos - XScreenOffset, Asteroid.YPos - YScreenOffset)) #put asteroid on screen
+
+def DrawBullet(Bullet, XScreenOffset, YScreenOffset):
+    Rectangle = pygame.Rect(Bullet.XPos - XScreenOffset, Bullet.YPos - YScreenOffset, Bullet.width, Bullet.height)
+    pygame.draw.rect(Window, (255, 255, 255), Rectangle)
+
+def DrawSpaceShip(SpaceShip):
+    global width, height
+    centerX = int(width/2)
+    centerY = int(height/2)
+
+    radius = 20
+    #Trig for drawing ship
+    frontX = (radius * math.cos(math.radians(SpaceShip.Rotation))) + centerX
+    frontY = (-radius * math.sin(math.radians(SpaceShip.Rotation))) + centerY
+
+    rearX = (0.4 * radius * math.cos(math.radians(SpaceShip.Rotation + 180))) + centerX
+    rearY = (0.4 * -radius * math.sin(math.radians(SpaceShip.Rotation + 180))) + centerY
+
+    leftX = (radius * math.cos(math.radians(SpaceShip.Rotation + 135))) + centerX
+    leftY = (-radius * math.sin(math.radians(SpaceShip.Rotation + 135))) + centerY
+
+    rightX = (radius * math.cos(math.radians(SpaceShip.Rotation + 225))) + centerX
+    rightY = (-radius * math.sin(math.radians(SpaceShip.Rotation + 225))) + centerY
+    pygame.draw.polygon(Window, (255,255,255), ((frontX, frontY), (leftX, leftY), (rearX, rearY), (rightX, rightY)))
+
+def DrawBoundary(XScreenOffset, YScreenOffset): #Draw arena walls
+    global ArenaWidth, ArenaHeight
+    boundaryWidth = 20
+    Rectangle = pygame.Rect(-boundaryWidth - XScreenOffset, -boundaryWidth - YScreenOffset, boundaryWidth, ArenaHeight + boundaryWidth) #left bar
+    pygame.draw.rect(Window, (255, 255, 255), Rectangle)
+
+    Rectangle = pygame.Rect(0 - XScreenOffset, -boundaryWidth - YScreenOffset, ArenaWidth + boundaryWidth, boundaryWidth)#top bar
+    pygame.draw.rect(Window, (255, 255, 255), Rectangle)
+
+    Rectangle = pygame.Rect(ArenaWidth - XScreenOffset, 0 - YScreenOffset, boundaryWidth, ArenaHeight + boundaryWidth) #right bar
+    pygame.draw.rect(Window, (255, 255, 255), Rectangle)
+
+    Rectangle = pygame.Rect(-boundaryWidth - XScreenOffset, ArenaHeight - YScreenOffset, ArenaWidth + boundaryWidth, boundaryWidth) #bottom bar
+    pygame.draw.rect(Window, (255, 255, 255), Rectangle)
+
+def DrawAsteroidKillText(): #Number of asteroids at top right
+    global AsteroidKillnumber, AstertodNumberFont
+    RectangleWidth = 150
+    if AsteroidKillnumber > 9:
+        RectangleWidth = 170
+    if AsteroidKillnumber > 99:  
+        RectangleWidth = 190
+    if AsteroidKillnumber > 999:  
+        RectangleWidth = 210
+    if AsteroidKillnumber > 9999:  
+        RectangleWidth = 230
+    Rectangle = pygame.Rect(0, 0, RectangleWidth, 35)
+    pygame.draw.rect(Window, (0,0,0), Rectangle)
+
+    KillCountText = AstertodNumberFont.render('Asteroids: ' + str(AsteroidKillnumber),1,(255,255,255))
+    Window.blit(KillCountText,(0,0))
+
+def DrawDeathText(): #Death Screen
+    global AsteroidKillnumber, BigFont, SmallFont, width, height
+    Window.fill((0, 0, 0))
+    DeathText = BigFont.render('Game Over!',1,(255,255,255))
+    Score = SmallFont.render('Final Score: ' + str(AsteroidKillnumber), 1, (255,255,255))
+    PromptText = SmallFont.render('Press G To Play Again', 1, (255,255,255))
+    Window.blit(DeathText,(int(width/2) - 267, int(height/4)))
+    Window.blit(Score,(int(width/2) - 100, int(height/4) + 130))
+    Window.blit(PromptText,(int(width/2) - 150, int(height/4) + 180))
+    pygame.display.flip()
+
+def DrawStartText(): #Screen when game first loads
+    global BigFont, SmallFont, width, height
+    Window.fill((0, 0, 0))
+    TitleText = BigFont.render('Asteroids Expanse',1,(255,255,255))
+    PromptText = SmallFont.render('Press G To Play', 1, (255,255,255))
+    Window.blit(TitleText,(int(width/2) - 432, int(height/4)))
+    Window.blit(PromptText,(int(width/2) - 101, int(height/4) + 180))
+    pygame.display.flip()
+    
+
+def Render(Asteroids, Bullets, SpaceShip):#render order: backround, stars, asteroids, bullets, boundary, spaceship
+    global stars
+    Window.fill((0, 2, 1))
+    XScreenOffset = int(SpaceShip.XPos - width/2) + int(SpaceShip.width/2)
+    YScreenOffset = int(SpaceShip.YPos - height/2) + int(SpaceShip.height/2)
+    for i in range(len(stars)):
+        Window.set_at((stars[i][0] - XScreenOffset,stars[i][1] - YScreenOffset), (255,255,255))
+
+    for i in range(len(Asteroids)):
+        DrawAsteroid(Asteroids[i], XScreenOffset, YScreenOffset)
+
+    for i in range(len(Bullets)):
+        DrawBullet(Bullets[i], XScreenOffset, YScreenOffset)
+
+    DrawBoundary(XScreenOffset, YScreenOffset)
+
+    DrawSpaceShip(SpaceShip)
+
+    DrawAsteroidKillText()
+
+    pygame.display.flip()
+
+def ProcessKeyImputs(Bullets, TheSpaceShip, keysPressed):
+    TheSpaceShip.YAccel = 0
+    TheSpaceShip.XAccel = 0
+    if keysPressed[pygame.K_w]: #Ship movement
+        TheSpaceShip.YAccel = -0.07
+    if keysPressed[pygame.K_s]:
+        TheSpaceShip.YAccel = 0.07
+    if keysPressed[pygame.K_d]:
+        TheSpaceShip.XAccel = 0.07
+    if keysPressed[pygame.K_a]:
+        TheSpaceShip.XAccel = -0.07
+    rotationSpeed = 1.7 * SpeedMultplyer
+    if keysPressed[pygame.K_RIGHT]: #Ship rotation
+        if TheSpaceShip.Rotation - rotationSpeed < 0:
+            TheSpaceShip.Rotation = 360 + (0 - (TheSpaceShip.Rotation - rotationSpeed))
+        else:
+            TheSpaceShip.Rotation -= rotationSpeed
+    if keysPressed[pygame.K_LEFT]:
+        if TheSpaceShip.Rotation + rotationSpeed > 360:
+            TheSpaceShip.Rotation = ((TheSpaceShip.Rotation + rotationSpeed) - 360)
+        else:
+            TheSpaceShip.Rotation += rotationSpeed
+
+    if keysPressed[pygame.K_SPACE] and TheSpaceShip.bulletCoolDown <= 0: #Fire a bullet
+        TheSpaceShip.bulletCoolDown = 50
+        newBullet = Bullet()
+        newBullet.XPos = TheSpaceShip.XPos + int(TheSpaceShip.width/2)
+        newBullet.YPos = TheSpaceShip.YPos + int(TheSpaceShip.height/2)
+        newBullet.XVal = ((4.8 * math.cos(math.radians(TheSpaceShip.Rotation))) + TheSpaceShip.XVal)#make shure  * SpeedMultplyer is correct here
+        newBullet.YVal = ((-4.8 * math.sin(math.radians(TheSpaceShip.Rotation))) + TheSpaceShip.YVal)
+        Bullets.append(newBullet)
+    return Bullets, TheSpaceShip
+
+def RunGame():
+    clock = pygame.time.Clock()
+    global width, height, fps
+    run = True
+
+    while True:
+        while run: #Start screen
+            width, height = Window.get_size()
+            DrawStartText()
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+            keysPressed = pygame.key.get_pressed()
+            if keysPressed[pygame.K_g]:
+                run = False
+            time.sleep(0.005)
+
+        run = True
+        Asteroids, TheSpaceShip, Bullets = GameSetup()
+        tempTimeTrack = 0
+        while run: #Main game loop
+            tempTimeTrack += 1
+            width, height = Window.get_size()
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+            keysPressed = pygame.key.get_pressed()
+            Bullets, TheSpaceShip = ProcessKeyImputs(Bullets, TheSpaceShip, keysPressed)
+
+            Asteroids, Bullets, TheSpaceShip = Tick(Asteroids, Bullets, TheSpaceShip)
+            if TheSpaceShip != 0:
+                Render(Asteroids, Bullets, TheSpaceShip)
+            else:
+                run = False
+            #print(tempTimeTrack, ': ', time.time())
+            
+            clock.tick(fps)#60 fps
+
+        run = True
+
+        while run: #Death Screen
+            width, height = Window.get_size()
+            DrawDeathText()
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+            keysPressed = pygame.key.get_pressed()
+            if keysPressed[pygame.K_g]:
+                run = False
+            time.sleep(0.005)
+
+RunGame()
